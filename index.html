@@ -4,44 +4,63 @@
 <title>くじら新聞</title>
 <meta name="description" content="月・水・土に出している新聞です。政治から流行まで、その日のできごとを16面にまとめています。">
 <style>
-  :root{ --paper:#f4f1ea; --ink:#1a1714; --soft:#4a423a; --rule:#1a1714; --thin:#c9c0b2; --accent:#b3372e; }
+  :root{ --paper:#f4f1ea; --ink:#1a1714; --soft:#5a5148; --rule:#1a1714; --thin:#cec5b7; --accent:#b3372e; }
+  @media (prefers-color-scheme: dark){
+    :root{ --paper:#1a1714; --ink:#f4f1ea; --soft:#b0a496; --rule:#f4f1ea; --thin:#443c34; --accent:#e0574c; }
+  }
   *{box-sizing:border-box}
   body{
     margin:0;background:var(--paper);color:var(--ink);
-    font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
-    line-height:1.7;padding:6vh 5vw 12vh;
+    font-family:"Hiragino Mincho ProN","Yu Mincho",serif;line-height:1.7;
+    padding:5vh 5vw 14vh;
   }
-  .wrap{max-width:52rem;margin:0 auto}
-  h1{font-size:clamp(2.2rem,7vw,3.4rem);margin:0;letter-spacing:.08em}
+  .wrap{max-width:60rem;margin:0 auto}
+  h1{font-size:clamp(2.1rem,7vw,3.2rem);margin:0;letter-spacing:.08em}
   h1 .dot{color:var(--accent)}
-  .sub{color:var(--soft);font-size:.95rem;margin:.6em 0 0;font-family:system-ui,sans-serif}
-  hr{border:0;border-top:2px solid var(--rule);margin:1.4em 0 0}
-  ul{list-style:none;padding:0;margin:0}
-  li{border-bottom:1px solid var(--thin);padding:1.1em .2em}
-  a{color:inherit;text-decoration:none;display:block}
-  a:hover .head{text-decoration:underline}
-  .meta{
-    font-family:system-ui,sans-serif;font-size:.8rem;color:var(--soft);
-    display:flex;gap:.8em;align-items:baseline;flex-wrap:wrap;
-  }
+  .tagline{color:var(--soft);font-size:.92rem;margin:.5em 0 0;font-family:system-ui,sans-serif}
+  .rule{border-top:3px double var(--rule);margin:1.2em 0 2em}
   .issue{color:var(--accent);font-weight:700}
-  .head{font-size:clamp(1.05rem,4vw,1.35rem);font-weight:600;margin-top:.25em}
-  footer{margin-top:3em;font-family:system-ui,sans-serif;font-size:.8rem;color:var(--soft)}
-  footer a{display:inline;text-decoration:underline}
-  .empty{padding:2em 0;color:var(--soft)}
-  @media (prefers-color-scheme: dark){
-    :root{ --paper:#1a1714; --ink:#f4f1ea; --soft:#b8ac9c; --rule:#f4f1ea; --thin:#4a423a; --accent:#e0574c; }
+  article.issue{border-bottom:1px solid var(--thin);padding-bottom:1.6em;margin-bottom:1.6em}
+  .meta{
+    font-family:system-ui,sans-serif;font-size:.82rem;color:var(--soft);
+    display:flex;gap:1em;align-items:baseline;flex-wrap:wrap;
   }
+  .meta .whole{color:var(--accent);text-decoration:none}
+  .meta .whole:hover{text-decoration:underline}
+  p.lead{font-size:clamp(1.2rem,4.4vw,1.7rem);font-weight:600;margin:.2em 0 1em;line-height:1.45}
+  .faces{
+    display:grid;gap:1.1em 2em;
+    grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));
+  }
+  .face h3{
+    font-size:.82rem;font-family:system-ui,sans-serif;letter-spacing:.12em;
+    margin:0 0 .35em;padding-bottom:.25em;border-bottom:1px solid var(--thin);color:var(--soft);
+  }
+  .face ul{list-style:none;margin:0;padding:0}
+  .face li{margin:.42em 0;text-indent:-.8em;padding-left:.8em}
+  .face li::before{content:"・";color:var(--accent)}
+  .face a{color:inherit;text-decoration:none}
+  .face a:hover{text-decoration:underline}
+  details summary{
+    cursor:pointer;font-family:system-ui,sans-serif;font-size:.9rem;
+    display:flex;gap:.8em;align-items:baseline;flex-wrap:wrap;padding:.2em 0;
+  }
+  details summary .d{color:var(--soft);font-size:.82rem}
+  details summary .h{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:1rem}
+  details[open] summary{margin-bottom:1em}
+  details .meta{display:none}
+  details[open] .meta{display:flex}
+  footer{margin-top:3em;font-family:system-ui,sans-serif;font-size:.82rem;color:var(--soft);line-height:1.9}
+  footer a{color:var(--accent)}
+  .empty{padding:2em 0;color:var(--soft)}
 </style>
 <div class="wrap">
   <h1>くじら<span class="dot">・</span>新聞</h1>
-  <p class="sub">月・水・土に出しています。その日のできごとを16面にまとめた紙面を、配信のあとに置いています。</p>
-  <hr>
-  <ul>
-    <li class="empty">まだ紙面がありません。</li>
-  </ul>
+  <p class="tagline">月・水・土に配信でやっている新聞です。その日のできごとを16面にまとめています。配信のあとにここへ置いています。</p>
+  <div class="rule"></div>
+  <p class="empty">まだ紙面がありません。</p>
   <footer>
-    紙面の記事は、それぞれ出典のリンクを付けています。くわしくは各記事の出典をたどってください。<br>
-    ニュースの投稿 → <a href="https://forms.gle/LKYrXsCGRGFyNXzA6">フォーム</a>
+    記事にはそれぞれ出典を付けています。くわしくは元の記事をご覧ください。<br>
+    気になったニュースの投稿 → <a href="https://forms.gle/LKYrXsCGRGFyNXzA6">フォーム</a>
   </footer>
 </div>
