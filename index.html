@@ -1,0 +1,47 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>くじら新聞</title>
+<meta name="description" content="月・水・土に出している新聞です。政治から流行まで、その日のできごとを16面にまとめています。">
+<style>
+  :root{ --paper:#f4f1ea; --ink:#1a1714; --soft:#4a423a; --rule:#1a1714; --thin:#c9c0b2; --accent:#b3372e; }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+    line-height:1.7;padding:6vh 5vw 12vh;
+  }
+  .wrap{max-width:52rem;margin:0 auto}
+  h1{font-size:clamp(2.2rem,7vw,3.4rem);margin:0;letter-spacing:.08em}
+  h1 .dot{color:var(--accent)}
+  .sub{color:var(--soft);font-size:.95rem;margin:.6em 0 0;font-family:system-ui,sans-serif}
+  hr{border:0;border-top:2px solid var(--rule);margin:1.4em 0 0}
+  ul{list-style:none;padding:0;margin:0}
+  li{border-bottom:1px solid var(--thin);padding:1.1em .2em}
+  a{color:inherit;text-decoration:none;display:block}
+  a:hover .head{text-decoration:underline}
+  .meta{
+    font-family:system-ui,sans-serif;font-size:.8rem;color:var(--soft);
+    display:flex;gap:.8em;align-items:baseline;flex-wrap:wrap;
+  }
+  .issue{color:var(--accent);font-weight:700}
+  .head{font-size:clamp(1.05rem,4vw,1.35rem);font-weight:600;margin-top:.25em}
+  footer{margin-top:3em;font-family:system-ui,sans-serif;font-size:.8rem;color:var(--soft)}
+  footer a{display:inline;text-decoration:underline}
+  .empty{padding:2em 0;color:var(--soft)}
+  @media (prefers-color-scheme: dark){
+    :root{ --paper:#1a1714; --ink:#f4f1ea; --soft:#b8ac9c; --rule:#f4f1ea; --thin:#4a423a; --accent:#e0574c; }
+  }
+</style>
+<div class="wrap">
+  <h1>くじら<span class="dot">・</span>新聞</h1>
+  <p class="sub">月・水・土に出しています。その日のできごとを16面にまとめた紙面を、配信のあとに置いています。</p>
+  <hr>
+  <ul>
+    <li class="empty">まだ紙面がありません。</li>
+  </ul>
+  <footer>
+    紙面の記事は、それぞれ出典のリンクを付けています。くわしくは各記事の出典をたどってください。<br>
+    ニュースの投稿 → <a href="https://forms.gle/LKYrXsCGRGFyNXzA6">フォーム</a>
+  </footer>
+</div>
