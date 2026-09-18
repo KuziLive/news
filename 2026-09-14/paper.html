@@ -399,6 +399,18 @@ footer.foot .nav span{
 footer.foot .nav span.cur{background:var(--rule);color:var(--paper);border-color:var(--rule);font-weight:700}
 footer.foot .spacer{flex:1}
 
+/* Webに置いたときだけ出す注記(2026-09-18・主の判断)。
+   ⚠ OBS は file:// で紙面を読むので、配信の画面には出ない。
+      CLAUDE.md「AIが作っていることを書かない」は配信の話なので、そこは変えていない。
+   ⚠ 幅いっぱいの行として footer の下に回り込ませる。
+      1行に並べるとナビの面ボタンが潰れる */
+footer.foot .disclaimer{display:none}
+body.on-web footer.foot{flex-wrap:wrap}
+body.on-web footer.foot .disclaimer{
+  display:block;flex-basis:100%;order:9;padding-top:.3em;
+  font-size:.92em;line-height:1.5;color:var(--ink-soft);
+}
+
 /* ---------- 主用ノート(配信には映らない) ---------- */
 #notes{
   position:fixed;inset:auto 0 0 0;max-height:56vh;overflow-y:auto;
@@ -1413,6 +1425,9 @@ const PAPER = {
   /* ---------- 面を組む ---------- */
   const pages = [{ id:"toc", label:"本日のトピック", nav:"トピック", toc:true }, ...body_];
   const stage = document.getElementById("stage");
+  // Webに置いたときだけ注記を出す。OBS(file://)と手元での確認には出さない
+  if (location.protocol === "http:" || location.protocol === "https:")
+    document.body.classList.add("on-web");
 
   const navHTML = pages.map((p, i) =>
     `<span data-go="${i}" class="${i === 0 ? "cur" : ""}">${i ? i + "." : ""}${esc(p.nav || p.label)}</span>`).join("");
@@ -1461,6 +1476,7 @@ const PAPER = {
           <div class="spacer"></div>
           <a class="home" href="../">号一覧</a>
           <div class="pager"><span data-step="-1">‹ 前</span><span data-step="1">次 ›</span></div>
+          <div class="disclaimer">この新聞はAIで自動生成しており誤りを含んでいる可能性があります。あくまで個人的な実験として作成しております。</div>
           <div class="foot-hint">${i + 1} / ${pages.length}　—　<kbd>?</kbd> でキー一覧</div>
         </footer>
       </section>`;
