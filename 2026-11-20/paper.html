@@ -1,0 +1,1415 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>くじら新聞</title>
+<style>
+/* =========================================================================
+   くじら新聞 紙面テンプレート
+   1画面 = 1面。OBSブラウザソースに 1920x1080 で登録して使う。
+   主用ノートは n キー。OBSは主のブラウザと別レンダリングなので配信に映らない。
+   ========================================================================= */
+
+:root{
+  --paper:#f4f1ea;      /* 生成り。純白は配信で眩しい */
+  --ink:#1a1714;
+  --ink-soft:#4a443c;
+  --rule:#1a1714;
+  --rule-thin:#b9b1a3;
+  --accent:#8c1d1d;     /* 朱。見出しの点と★に使う */
+  --tag:#2d4a63;
+  --note-bg:#141210;
+  --note-fg:#f0ece4;
+
+  /* 面全体を 1080p 基準でスケールさせる。小さい画面でも比率が崩れない。
+     文字サイズはここ1箇所で決まる(他は全部 em)。
+     視聴者は1920x1080を「動画として縮小した状態」で見るので、@media は効かない。
+     スマホ横持ち全画面 = 約844px幅 → 倍率 0.44。本文が12px相当で読めるように逆算して 1.46vw。
+     縦持ち(倍率0.20)は何をしても本文が読めないので、見出しだけ拾える状態を狙う。
+     2026-08-11 に 1.02vw(本文が横持ちで8.4px相当)から引き上げた。
+     ⚠ clamp の上限だけ上げても効かない。1920幅では vw の項が選ばれるので、
+        大きさを変えるときは必ず vw の係数を触ること */
+  --u: clamp(14px, 1.46vw, 30px);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+html,body{height:100%}
+/* OBSのブラウザソースはカスタムCSSの既定値で body に
+   background-color:rgba(0,0,0,0) を後から当ててくる。body だけに塗ると
+   背景が透明になるので、html 側にも塗って上書きされないようにする */
+html{background:var(--paper)}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"Yu Mincho","YuMincho","Hiragino Mincho ProN","Noto Serif JP","MS Mincho",serif;
+  font-size:var(--u);
+  line-height:1.6;
+  overflow:hidden;
+}
+
+/* ---------- 面の器 ---------- */
+#stage{height:100vh;display:flex;flex-direction:column;padding:1.6em 2.2em 0}
+.page{display:none;flex:1;min-height:0;flex-direction:column}
+.page.on{display:flex}
+
+/* ---------- 題字 ---------- */
+header.masthead{
+  display:flex;align-items:flex-end;gap:1.4em;
+  border-bottom:3px solid var(--rule);
+  padding-bottom:.5em;flex:none;
+}
+.masthead .title{
+  font-size:3.1em;font-weight:900;letter-spacing:.14em;line-height:1;
+  white-space:nowrap;
+}
+.masthead .title .dot{color:var(--accent)}
+.masthead .meta{
+  font-size:.95em;color:var(--ink-soft);line-height:1.5;
+  border-left:1px solid var(--rule-thin);padding-left:1.2em;
+}
+.masthead .spacer{flex:1}
+.masthead .pagelabel{
+  font-size:1.5em;font-weight:800;letter-spacing:.3em;
+  border:2px solid var(--rule);padding:.18em .5em .18em .8em;white-space:nowrap;
+}
+
+/* ---------- 面の中身 ---------- */
+.sheet{flex:1;min-height:0;overflow-y:auto;padding:1.1em 0 2.4em;scrollbar-width:thin}
+.sheet::-webkit-scrollbar{width:6px}
+.sheet::-webkit-scrollbar-thumb{background:var(--rule-thin);border-radius:3px}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5em 2em}
+.grid.two{grid-template-columns:repeat(2,1fr)}
+.lead{grid-column:1 / -1}
+.wide{grid-column:span 2}
+
+/* ---------- 記事 ---------- */
+article{
+  border-top:1px solid var(--rule-thin);padding-top:.7em;
+  break-inside:avoid;position:relative;
+}
+article.is-lead{border-top:none;padding-top:0}
+
+.flags{display:flex;align-items:center;gap:.5em;margin-bottom:.35em;flex-wrap:wrap}
+.star{color:var(--accent);font-size:1.15em;line-height:1}
+.later{color:var(--ink-soft);font-size:1.05em;line-height:1}
+.len{
+  font-family:system-ui,sans-serif;font-size:.78em;font-weight:700;
+  letter-spacing:.06em;color:#fff;background:var(--tag);
+  padding:.12em .5em;border-radius:2px;white-space:nowrap;
+}
+.len.long{background:var(--accent)}
+.caution{
+  font-family:system-ui,sans-serif;font-size:.78em;font-weight:700;
+  color:var(--accent);border:1px solid var(--accent);
+  padding:.1em .45em;border-radius:2px;white-space:nowrap;
+}
+/* 続報の印。前回までの紙面で既に扱ったネタに付く。
+   これが付いている記事は「新着だけ喋れば済む」ので、主が尺を削る目印になる */
+.upd-tag{
+  font-family:system-ui,sans-serif;font-size:.78em;font-weight:700;
+  letter-spacing:.06em;color:#fff;background:var(--tag);
+  padding:.12em .5em;border-radius:2px;white-space:nowrap;
+}
+
+h2.hl{font-size:1.5em;font-weight:900;line-height:1.28;letter-spacing:.01em;margin-bottom:.3em}
+article.is-lead h2.hl{font-size:3em;line-height:1.18;letter-spacing:-.01em;margin-bottom:.45em}
+article.is-lead h2.hl .kicker{
+  display:block;font-size:.34em;font-weight:700;letter-spacing:.22em;
+  color:var(--accent);margin-bottom:.5em;
+}
+
+p.lede{font-size:1.05em;line-height:1.75;margin-bottom:.5em}
+article.is-lead p.lede{font-size:1.35em;line-height:1.8;font-weight:600}
+.body p{font-size:.98em;line-height:1.8;margin-bottom:.4em;text-align:justify}
+.body p::before{content:"　"}
+
+/* かんたんに言うと。
+   2026-08-11から **これが記事の本体**。見出しの下は原則この囲みだけにする
+   (lede と body は書かない。レンダラは残してあるので、書けば従来どおり出る)。
+   紙面の地の文は明朝だが、ここはゴシック。読ませる文字なので可読性を優先する */
+.plain{
+  border-left:5px solid var(--accent);background:rgba(140,29,29,.045);
+  padding:.5em .85em .6em;margin:.2em 0 .5em;
+}
+.plain .lb{
+  display:block;font-family:system-ui,sans-serif;font-size:.74em;font-weight:800;
+  letter-spacing:.14em;color:var(--accent);margin-bottom:.2em;
+}
+.plain p{font-family:system-ui,sans-serif;font-size:1em;line-height:1.75}
+article.is-lead .plain p{font-size:1.3em;line-height:1.8}
+
+/* 用語。かんたんに言うと の中に出た言葉だけを引く */
+.plain .terms{
+  font-family:system-ui,sans-serif;font-size:.84em;line-height:1.7;
+  color:var(--ink-soft);margin-top:.4em;
+  border-top:1px dotted var(--rule-thin);padding-top:.35em;
+}
+.plain .terms div{margin-top:.1em}
+.plain .terms b{color:var(--ink);font-weight:800}
+
+/* 自分にどう来るか。2026-08-31に追加。**任意**。
+   plain の直後に置く。「何の話か → 自分にどう来るか」の順で読める。
+   地色を敷かないので、plain(地色あり)の続きとして読める。
+   ★ 推測を書かないこと。書けない記事は付けない(CLAUDE.md「自分にどう来るか」) */
+.mine{
+  font-family:system-ui,sans-serif;font-size:.94em;line-height:1.72;
+  border-left:5px solid var(--accent);padding:.4em .85em .46em;margin:0 0 .55em;
+}
+.mine .lb{
+  display:block;font-size:.78em;font-weight:800;letter-spacing:.14em;
+  color:var(--accent);margin-bottom:.14em;
+}
+.mine .wo{font-weight:800;color:var(--ink)}
+article.is-lead .mine{font-size:1.12em}
+
+/* 前回からの新着。既出のネタを載せるときは、**どこが新しいのか**をここに書く。
+   これが書けないネタは、そもそも紙面に載せない(CLAUDE.md「既出のネタの扱い」)。
+   かんたんに言うと の直後に置く。「何の話か → 何が新しいか」の順で読める */
+.upd{
+  font-family:system-ui,sans-serif;font-size:.9em;line-height:1.7;
+  border-left:5px solid var(--tag);background:rgba(45,74,99,.06);
+  padding:.42em .8em .48em;margin:0 0 .55em;
+}
+.upd .lb{
+  display:block;font-size:.8em;font-weight:800;letter-spacing:.14em;
+  color:var(--tag);margin-bottom:.12em;
+}
+.upd .pv{font-weight:700;letter-spacing:.04em;color:var(--ink-soft)}
+article.is-lead .upd{font-size:1.05em}
+
+/* 登場人物。芸能・配信面の、人が主語の記事では必須。
+   名前だけ並んでも「誰?」で止まり、その面ごと飛ばされる。
+   写真はほぼ使えない(画像のルール)ので、文字で誰かを立てるしかない */
+.who{
+  font-family:system-ui,sans-serif;font-size:.86em;line-height:1.6;
+  border:1px solid var(--rule-thin);padding:.42em .7em .48em;margin:0 0 .55em;
+}
+.who .lb{
+  display:block;font-size:.8em;font-weight:800;letter-spacing:.14em;
+  color:var(--ink-soft);margin-bottom:.12em;
+}
+.who div{margin-top:.1em}
+.who b{font-weight:800}
+.who .d{color:var(--ink-soft)}
+
+/* しくみ。何がどう繋がってその結論になるのかを1行で見せる。
+   用語の意味が分かっても関係が分からないと納得できないので、terms と対で使う */
+.plain .flow{
+  display:flex;flex-wrap:wrap;align-items:center;gap:.25em .1em;
+  font-family:system-ui,sans-serif;margin-top:.45em;
+}
+.plain .flow span{
+  border:1px solid var(--rule-thin);background:var(--paper);
+  padding:.12em .5em;font-size:.84em;line-height:1.5;
+}
+.plain .flow i{color:var(--accent);font-style:normal;font-weight:800;padding:0 .1em}
+article.is-lead .plain .flow span{font-size:1em}
+
+figure{margin:.6em 0}
+figure img{width:100%;height:auto;display:block;border:1px solid var(--rule-thin);filter:saturate(.94)}
+figcaption{font-size:.78em;color:var(--ink-soft);margin-top:.3em;line-height:1.5}
+figcaption .cr{opacity:.75}
+article.is-lead .leadwrap{display:grid;grid-template-columns:1.15fr 1fr;gap:1.6em;align-items:start}
+
+/* 出典 */
+.src{
+  margin-top:.5em;padding-top:.4em;border-top:1px dotted var(--rule-thin);
+  font-family:system-ui,sans-serif;font-size:.78em;color:var(--ink-soft);line-height:1.65;
+}
+.src b{font-weight:700;color:var(--ink)}
+.src .u{word-break:break-all;opacity:.8}
+.src .unconfirmed{color:var(--accent);font-weight:700}
+
+/* ひとこと欄(短信) */
+.briefs{border:2px solid var(--rule);padding:.8em 1em;background:rgba(0,0,0,.018)}
+.briefs h3{
+  font-size:1.05em;font-weight:900;letter-spacing:.2em;margin-bottom:.5em;
+  border-bottom:1px solid var(--rule);padding-bottom:.3em;
+}
+.briefs li{list-style:none;font-size:.92em;line-height:1.6;padding:.42em 0;border-bottom:1px dotted var(--rule-thin)}
+.briefs li:last-child{border-bottom:none}
+.briefs .b-src{font-family:system-ui,sans-serif;font-size:.76em;color:var(--ink-soft);display:block;margin-top:.15em}
+
+/* ---------- 流行(ジャンル別トレンド。ざっと眺める面) ----------
+   記事ではなく一覧。1ジャンル1枚のカードで、視線を横に流せる形にする。
+   2026-08-11に音楽面を畳んでここへ統合した */
+.trend{display:grid;grid-template-columns:repeat(3,1fr);gap:.85em 1em;align-content:start}
+.trend .card{
+  border:1px solid var(--rule);padding:.6em .75em .65em;
+  display:flex;flex-direction:column;background:rgba(0,0,0,.012);min-height:0;
+}
+.trend .g{
+  font-family:system-ui,sans-serif;font-size:.8em;font-weight:800;letter-spacing:.16em;
+  color:var(--accent);border-bottom:1px solid var(--rule);padding-bottom:.22em;margin-bottom:.35em;
+}
+/* 順位。名前だけ並べても何も話せないので、1件ずつ一言(n)を必ず付ける */
+.trend .rank{list-style:none}
+.trend .rank li{
+  display:grid;grid-template-columns:1.5em 1fr;gap:.08em .4em;
+  padding:.3em 0;border-bottom:1px dotted var(--rule-thin);
+}
+.trend .rank li:last-child{border-bottom:none}
+.trend .rank .r{
+  font-family:system-ui,sans-serif;font-weight:900;font-size:.95em;
+  line-height:1.35;color:var(--accent);
+}
+.trend .rank .t{font-size:1em;font-weight:800;line-height:1.35}
+.trend .rank .n{
+  grid-column:2;font-family:system-ui,sans-serif;font-size:.8em;
+  line-height:1.5;color:var(--ink-soft);
+}
+.none{font-family:system-ui,sans-serif;font-size:.85em;color:var(--ink-soft);padding:.5em 0}
+.trend .none{font-family:system-ui,sans-serif;font-size:.85em;color:var(--ink-soft);padding:.5em 0}
+.trend .s{
+  font-family:system-ui,sans-serif;font-size:.72em;line-height:1.5;color:var(--ink-soft);
+  opacity:.85;margin-top:auto;padding-top:.3em;border-top:1px dotted var(--rule-thin);
+}
+
+/* ---------- 本日のトピック(目次面・自動生成) ---------- */
+.toc{display:grid;grid-template-columns:repeat(4,1fr);gap:.9em 1.1em;align-content:start}
+.toc .card{
+  border:1px solid var(--rule);padding:.6em .75em .5em;cursor:pointer;
+  display:flex;flex-direction:column;min-height:0;background:rgba(0,0,0,.012);
+}
+.toc .card:hover{background:rgba(140,29,29,.06)}
+.toc .card h3{
+  font-size:1.15em;font-weight:900;letter-spacing:.16em;
+  border-bottom:2px solid var(--rule);padding-bottom:.25em;margin-bottom:.45em;
+  display:flex;align-items:baseline;gap:.5em;
+}
+.toc .card h3 .n{
+  font-family:system-ui,sans-serif;font-size:.62em;font-weight:700;
+  color:var(--paper);background:var(--rule);padding:.05em .4em;letter-spacing:.04em;
+}
+.toc .top{font-size:1.02em;font-weight:800;line-height:1.4;margin-bottom:.35em}
+.toc .top .star{margin-right:.25em}
+.toc ul{list-style:none;flex:1}
+.toc li{
+  font-size:.85em;line-height:1.45;padding:.16em 0;color:var(--ink-soft);
+  border-top:1px dotted var(--rule-thin);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.toc li.warn{color:var(--accent)}
+.toc .tally{
+  font-family:system-ui,sans-serif;font-size:.74em;color:var(--ink-soft);
+  border-top:1px solid var(--rule-thin);margin-top:.4em;padding-top:.3em;
+  display:flex;gap:.6em;
+}
+.toc .tally b{color:var(--accent);font-weight:700}
+.toc .none{font-size:.85em;color:var(--rule-thin);flex:1;padding-top:.3em}
+
+/* 目次面の総尺バー */
+.tocsum{
+  grid-column:1 / -1;border:2px solid var(--rule);padding:.55em .9em;
+  font-family:system-ui,sans-serif;font-size:.92em;
+  display:flex;align-items:center;gap:1.2em;flex-wrap:wrap;
+}
+.tocsum .big{font-size:1.5em;font-weight:800;color:var(--accent);font-family:inherit}
+.tocsum .warnlist{color:var(--accent);font-weight:700}
+
+/* ---------- クイズ面 ---------- */
+.quiz{display:grid;grid-template-columns:repeat(2,1fr);gap:1.1em 1.6em;align-content:start}
+.q{border:2px solid var(--rule);padding:.8em 1em .7em;display:flex;flex-direction:column}
+.q .no{
+  font-family:system-ui,sans-serif;font-size:.78em;font-weight:700;letter-spacing:.1em;
+  color:var(--paper);background:var(--accent);padding:.1em .55em;align-self:flex-start;margin-bottom:.5em;
+}
+.q .qt{font-size:1.32em;font-weight:800;line-height:1.4;margin-bottom:.5em}
+.q ol{list-style:none;counter-reset:c;margin-bottom:.5em}
+.q ol li{
+  counter-increment:c;font-size:1.02em;line-height:1.5;padding:.2em 0 .2em 1.9em;position:relative;
+}
+.q ol li::before{
+  content:counter(c);position:absolute;left:0;top:.28em;
+  width:1.35em;height:1.35em;border:1.5px solid var(--rule);border-radius:50%;
+  font-family:system-ui,sans-serif;font-size:.78em;font-weight:700;
+  display:grid;place-items:center;
+}
+.q .ans{
+  margin-top:auto;border-top:2px dashed var(--rule-thin);padding-top:.5em;
+  cursor:pointer;user-select:none;
+}
+.q .ans .cover{
+  font-family:system-ui,sans-serif;font-size:.9em;font-weight:700;color:var(--ink-soft);
+  background:repeating-linear-gradient(45deg,rgba(0,0,0,.05) 0 8px,transparent 8px 16px);
+  border:1px dashed var(--rule-thin);padding:.5em;text-align:center;letter-spacing:.1em;
+}
+.q .ans .real{display:none}
+.q.open .ans .cover{display:none}
+.q.open .ans .real{display:block}
+.q .real .a{font-size:1.25em;font-weight:900;color:var(--accent);margin-bottom:.25em}
+.q .real .why{font-size:.92em;line-height:1.6}
+.q .real .s{font-family:system-ui,sans-serif;font-size:.74em;color:var(--ink-soft);margin-top:.35em;word-break:break-all}
+
+/* ---------- 解説面 ---------- */
+.explain{display:grid;grid-template-columns:1.05fr 1fr;gap:1.2em 1.8em;align-content:start}
+.explain .head{grid-column:1 / -1;border-bottom:2px solid var(--rule);padding-bottom:.5em}
+.explain h2{font-size:2.3em;font-weight:900;line-height:1.2;margin-bottom:.25em}
+.explain .lede{font-size:1.15em;line-height:1.7;font-weight:600}
+.explain .why{
+  border-left:4px solid var(--accent);padding:.15em 0 .15em .9em;
+  font-size:1em;line-height:1.7;
+}
+.explain .why b{color:var(--accent)}
+.explain ol.pt{list-style:none;counter-reset:p;display:flex;flex-direction:column;gap:.55em}
+.explain ol.pt li{
+  counter-increment:p;position:relative;padding-left:2.1em;font-size:1em;line-height:1.65;
+}
+.explain ol.pt li::before{
+  content:counter(p);position:absolute;left:0;top:.05em;
+  width:1.5em;height:1.5em;background:var(--rule);color:var(--paper);
+  font-family:system-ui,sans-serif;font-size:.8em;font-weight:700;
+  display:grid;place-items:center;
+}
+.explain .enough{
+  grid-column:1 / -1;border:2px solid var(--rule);padding:.6em .9em;
+  font-size:1.02em;line-height:1.6;background:rgba(0,0,0,.02);
+}
+.explain .enough b{font-family:system-ui,sans-serif;font-size:.8em;letter-spacing:.14em;color:var(--accent);display:block;margin-bottom:.2em}
+figure.fig{margin:0}
+/* 解説面ではグリッドの1マスを埋めるが、記事の中に置くときは本文を押しのけないよう抑える */
+article figure.fig{margin:.7em 0;max-width:min(100%,540px)}
+figure.fig svg{width:100%;height:auto;display:block}
+figure.fig figcaption{font-size:.78em;color:var(--ink-soft);margin-top:.4em;line-height:1.5}
+/* 表。地域ごとの天気のように「同じ項目を並べて比べる」もの用 */
+figure.fig table.figtab{width:100%;border-collapse:collapse;line-height:1.4}
+figure.fig .figtab th,figure.fig .figtab td{padding:.3em .5em;text-align:left;vertical-align:baseline;
+  border-bottom:1px solid var(--rule-thin)}
+figure.fig .figtab thead th{font:700 .82em/1.4 system-ui,sans-serif;color:var(--ink-soft);
+  border-bottom:2px solid var(--rule);white-space:nowrap}
+figure.fig .figtab thead th:nth-child(n+3){text-align:right}   /* 数字の列は見出しも右へ */
+figure.fig .figtab tbody th{font:700 .95em/1.4 serif;white-space:nowrap;width:1%}
+figure.fig .figtab tbody td{font-size:.9em}
+figure.fig .figtab tbody td:not(:nth-child(2)){font:800 .95em/1.4 system-ui,sans-serif;
+  color:var(--accent);white-space:nowrap;text-align:right}
+
+/* ---------- 面の下部 ---------- */
+footer.foot{
+  flex:none;border-top:2px solid var(--rule);
+  display:flex;align-items:center;gap:1.4em;
+  padding:.45em 0 .6em;font-family:system-ui,sans-serif;font-size:.8em;color:var(--ink-soft);
+}
+footer.foot .nav{display:flex;gap:.35em;flex-wrap:wrap}
+footer.foot .nav span{
+  padding:.12em .55em;border:1px solid var(--rule-thin);border-radius:2px;cursor:pointer;
+}
+footer.foot .nav span.cur{background:var(--rule);color:var(--paper);border-color:var(--rule);font-weight:700}
+footer.foot .spacer{flex:1}
+
+/* Webに置いたときだけ出す注記(2026-09-18・主の判断)。
+   ⚠ OBS は file:// で紙面を読むので、配信の画面には出ない。
+      CLAUDE.md「AIが作っていることを書かない」は配信の話なので、そこは変えていない。
+   ⚠ 幅いっぱいの行として footer の下に回り込ませる。
+      1行に並べるとナビの面ボタンが潰れる */
+footer.foot .disclaimer{display:none}
+body.on-web footer.foot{flex-wrap:wrap}
+body.on-web footer.foot .disclaimer{
+  display:block;flex-basis:100%;order:9;padding-top:.3em;
+  font-size:.92em;line-height:1.5;color:var(--ink-soft);
+}
+
+/* ---------- 主用ノート(配信には映らない) ---------- */
+#notes{
+  position:fixed;inset:auto 0 0 0;max-height:56vh;overflow-y:auto;
+  background:var(--note-bg);color:var(--note-fg);
+  font-family:system-ui,sans-serif;font-size:.95em;line-height:1.7;
+  padding:1.1em 1.6em 1.4em;display:none;z-index:50;
+  border-top:3px solid var(--accent);box-shadow:0 -14px 40px rgba(0,0,0,.45);
+}
+#notes.on{display:block}
+#notes h4{
+  font-size:.85em;letter-spacing:.24em;color:#c99;margin-bottom:.7em;font-weight:700;
+}
+#notes .n{border-left:2px solid #555;padding:.1em 0 .5em .9em;margin-bottom:.9em}
+#notes .n .t{font-weight:700;color:#fff;margin-bottom:.2em}
+#notes .n .v{white-space:pre-wrap}
+#notes .n .warn{color:#ff9c9c;font-weight:700}
+#notes .n .op{color:#9cc7ff}
+#notes .empty{opacity:.5}
+
+/* ---------- ヘルプ ---------- */
+#help{
+  position:fixed;inset:0;background:rgba(10,8,6,.9);color:#f0ece4;z-index:60;
+  display:none;place-items:center;font-family:system-ui,sans-serif;
+}
+#help.on{display:grid}
+#help table{border-collapse:collapse;font-size:1.15em}
+#help td{padding:.45em 1.4em;border-bottom:1px solid #333}
+#help kbd{
+  background:#2a2622;border:1px solid #555;border-bottom-width:2px;border-radius:3px;
+  padding:.1em .55em;font-family:ui-monospace,monospace;
+}
+
+footer.foot .home{display:none}
+footer.foot .pager{display:flex;gap:.35em}
+footer.foot .pager span{
+  padding:.12em .7em;border:1px solid var(--rule-thin);border-radius:2px;
+  cursor:pointer;user-select:none;font-weight:700;
+}
+
+@media (max-width:900px){
+  .grid,.grid.two{grid-template-columns:1fr}
+  .wide,.lead{grid-column:auto}
+  article.is-lead .leadwrap{grid-template-columns:1fr}
+  .masthead .title{font-size:2.2em}
+
+  /* 指で押せる大きさにする。キーが無い環境ではここだけが面送りの手段になる */
+  footer.foot{flex-wrap:wrap;gap:.5em;font-size:1em;padding:.5em 0 .7em}
+  footer.foot .spacer{display:none}
+  footer.foot .foot-hint{display:none}
+  footer.foot .nav{gap:.4em}
+  footer.foot .nav span,footer.foot .pager span{padding:.5em .8em;font-size:1.05em}
+  footer.foot .pager{order:-1;width:100%}
+  footer.foot .pager span{flex:1;text-align:center}
+  /* Webで直接この面に来た人の帰り道。OBS(1920)には出ない */
+  footer.foot .home{
+    display:inline-block;padding:.5em .8em;font-size:1.05em;
+    border:1px solid var(--rule-thin);border-radius:2px;color:inherit;text-decoration:none;
+  }
+}
+</style>
+</head>
+<body>
+
+<script id="paper-data">
+const PAPER = {
+  issue:  "第37号",
+  date:   "2026-11-20",
+  dow:    "金",
+  weather:"晴れ",
+  edition:"夕刊",
+  headline:"Anthropic、ナスダックに上場　調達額は過去最大の約813億ドル",
+
+  pages: [
+
+    /* ------------------------------ 一面 ------------------------------ */
+    {
+      id:"front", label:"一面",
+      lead:{
+        kicker:"Xトレンドに関連語が4つ並び、Google急上昇・テック媒体にも出た",
+        title:"Anthropic、ナスダックに上場　IPOの調達額は約813億ドルで過去最大",
+        plain:"AIの「Claude」を作るアメリカの会社が、株をだれでも売り買いできる市場に加わった。株を売り出して集めたお金は約13兆円で、これまでで一番大きい。最初についた値段は、売り出しの値段より3割ほど高かった。",
+        structure:["会社が株を売り出す","投資家が買い、約13兆円が集まる","会社のお金の土台が厚くなる"],
+        terms:[
+          {w:"ナスダック", d:"アメリカの株の市場の1つ。IT企業が多く集まる"},
+          {w:"上場", d:"会社の株を、だれでも売り買いできる市場に出すこと"},
+          {w:"IPO", d:"新規株式公開。上場するときに、はじめて株を売り出すこと"}
+        ],
+        len:"5分", flag:"star",
+        img:null,
+        src:[{name:"ITmedia NEWS", url:"https://www.itmedia.co.jp/news/article/2611/20/2000003354/", primary:true}]
+      }
+    },
+
+    /* ------------------------------ ゲーム ------------------------------ */
+    { id:"game", label:"ゲーム", articles:[
+      {
+        title:"『GTA6』発売　発売前のレビュー集計でメタスコア99、今年最高",
+        upd:{ prev:"11/18", new:"11月19日に発売された。発売前のレビューをまとめた点数が99で、今年いちばん高い" },
+        plain:"車や街を自由に動き回るアメリカの人気ゲームの最新作が、19日に出た。雑誌やサイトが出した評価をまとめたところ、100点満点で99点になった。",
+        terms:[{w:"メタスコア", d:"Metacriticというサイトが、メディアや批評家の評価をまとめて出す100点満点の点数"}],
+        len:"2分", flag:"",
+        src:[{name:"AUTOMATON", url:"https://automaton-media.com/articles/newsjp/20261118-479925/", primary:true}]
+      },
+      {
+        title:"カードゲーム「WIXOSS」、2027年2月で新商品の展開を休止　発売から約13年",
+        plain:"タカラトミーの、紙のカードで対戦するゲームが、来年2月27日に出す拡張パックを最後に新しい商品を出さなくなる。2014年に始まり、出荷は4000万パックを超えていた。",
+        terms:[{w:"拡張パック", d:"新しいカードを追加するための商品"}],
+        len:"2分", flag:"star",
+        src:[
+          {name:"タカラトミー「WIXOSS」今後の商品展開に関するお知らせ", url:"https://www.takaratomy.co.jp/products/wixoss/column/play_261023/", primary:true},
+          {name:"AUTOMATON", url:"https://automaton-media.com/articles/newsjp/20261119-480061/", primary:true}
+        ]
+      },
+      {
+        title:"『Slay the Spire 2』、遊んだ人の25%が100時間超え　調査会社の推計",
+        plain:"カードを集めながら塔を登っていくゲームの続編が、Steamだけで790万本売れたと、調査会社が推計した。遊んだ人の4人に1人が、100時間以上プレイしているという。",
+        terms:[{w:"推計", d:"手元のデータをもとに、全体の数を見積もること。実際に数えた数ではない"}],
+        warn:"調査会社の推計",
+        len:"30秒", flag:"later",
+        src:[{name:"AUTOMATON", url:"https://automaton-media.com/articles/newsjp/20261119-479985/", primary:true}]
+      }
+    ]},
+
+    /* ------------------------------ 配信 ------------------------------ */
+    { id:"stream", label:"配信", articles:[
+      {
+        title:"HIKAKIN、YouTube登録者数2000万人を突破　1000万人から5年",
+        plain:"日本のYouTuberの草分けのHIKAKINさんのチャンネルが、登録者2000万人に届いた。19日の夜、ゲームのイベントで訪れていたアメリカ・マイアミのホテルから配信して、その瞬間を見届けた。",
+        who:[{n:"HIKAKIN", d:"新潟県出身のYouTuberで、ヒューマンビートボクサー。YouTubeでの活動は20年目"}],
+        terms:[{w:"登録者数", d:"チャンネルを登録している人の数。新しい動画が届くようにしている人"}],
+        len:"2分", flag:"star",
+        src:[{name:"KAI-YOU", url:"https://kai-you.net/article/97210", primary:true}]
+      },
+      {
+        title:"タニタ初の公式VTuber「前野ハカリ」デビュー　管理栄養士として健康相談に答える",
+        plain:"体重計などを作る会社が、会社のキャラクターとして配信するVTuberを始めた。12月3日の夜7時に初めての生配信をして、その後は月2回のペースで続ける。",
+        who:[{n:"前野ハカリ", d:"タニタの新入社員で、管理栄養士という設定のVTuber"}],
+        terms:[
+          {w:"VTuber", d:"アニメのようなキャラクターの姿で動画や配信をする人"},
+          {w:"管理栄養士", d:"食事と栄養の指導をする国家資格"}
+        ],
+        len:"30秒", flag:"",
+        src:[{name:"KAI-YOU", url:"https://kai-you.net/article/97207", primary:true}]
+      }
+    ]},
+
+    /* ------------------------------ SNS・ネット ------------------------------ */
+    { id:"sns", label:"SNS・ネット", articles:[
+      {
+        title:"Suicaペンギンの後継はB案「紫のうさぎ」　得票率51.7%、愛称は12月15日まで募集",
+        upd:{ prev:"9/11", new:"投票の結果が出た。166万票あまりのうち、紫のうさぎが約半分を取った" },
+        plain:"JR東日本のICカード「Suica」の顔だったペンギンの次のキャラクターが、ネット投票で紫色のうさぎに決まった。交代は2027年4月1日。名前はこれから一般から募る。",
+        impact:{ who:"名前を考えてみたい人", t:"愛称の応募は12月15日まで。発表は2027年3月31日の予定" },
+        terms:[
+          {w:"得票率", d:"全部の票のうち、その案に入った票の割合"},
+          {w:"愛称", d:"親しみをこめた呼び名"}
+        ],
+        len:"2分", flag:"star",
+        src:[{name:"ITmedia NEWS", url:"https://www.itmedia.co.jp/news/article/2611/18/2000003307/", primary:true}]
+      },
+      {
+        title:"「焼肉きんぐ」「ゆず庵」など11アプリ、会員の氏名・電話番号の項目を廃止",
+        plain:"焼肉きんぐなどの店のアプリから、名前と電話番号を登録する欄がなくなった。10月に会員の情報が漏れたので、そもそも持たないことにした。",
+        structure:["10月に会員情報1078万件が漏れる","持っていなければ漏れない","氏名と電話番号の欄をやめる"],
+        impact:{ who:"焼肉きんぐ・ゆず庵・丸源ラーメンなどのアプリを使っている人", t:"予約や来店のやり方は今までと同じ。登録済みの氏名と電話番号は、会社が順に消していく" },
+        len:"30秒", flag:"",
+        src:[{name:"ITmedia NEWS", url:"https://www.itmedia.co.jp/news/article/2611/19/2000003344/", primary:true}]
+      },
+      {
+        title:"ロバート・パティンソンが『学マス』『仮面ライダー』に出演？　嘘の映画化ミームが流行",
+        plain:"新しいジェームズ・ボンド役に決まった俳優について、Xで「この役にも決まった」という嘘の発表が次々と投稿されている。映画ニュースの速報をまねた冗談で、実際には発表されていない。",
+        who:[{n:"ロバート・パティンソン", d:"イギリス出身の俳優。映画『007』の新しいボンド役に決まった"}],
+        terms:[{w:"ミーム", d:"ネットでまねされて広がっていく、型の決まった冗談"}],
+        len:"30秒", flag:"",
+        src:[{name:"KAI-YOU", url:"https://kai-you.net/article/97201", primary:true}]
+      }
+    ]},
+
+    /* ------------------------------ 芸能 ------------------------------ */
+    { id:"ent", label:"芸能", articles:[
+      {
+        title:"Netflixドラマ『地面師たち』続編が2027年配信へ　綾野剛と豊川悦司、大根仁監督が続投",
+        plain:"土地の持ち主になりすまして大金をだまし取る詐欺師たちを描いたNetflixのドラマに、続編ができる。2027年に世界で配信される。前作の主役2人と監督が、そのまま続ける。",
+        who:[
+          {n:"綾野剛", d:"俳優。前作で主役の1人を演じた"},
+          {n:"豊川悦司", d:"俳優。前作で主役の1人を演じた"}
+        ],
+        terms:[
+          {w:"地面師", d:"土地の持ち主になりすまして、土地の売り買いでお金をだまし取る詐欺師"},
+          {w:"続投", d:"前と同じ人が、引き続き同じ役目をつとめること"}
+        ],
+        len:"2分", flag:"star",
+        src:[{name:"KAI-YOU", url:"https://kai-you.net/article/97202", primary:true}]
+      },
+      {
+        title:"シンガーyama、仮面を外すことを決断　2027年から「本来の自分に近い姿」で活動",
+        plain:"青い髪と仮面の姿で歌ってきたシンガーが、来年1月から本来の自分に近い姿で活動すると発表した。仮面は、人前で歌うのがこわかった自分を守るためのものだったという。",
+        who:[{n:"yama", d:"2020年の曲「春を告げる」で知られるシンガー。青い髪と仮面の姿で活動してきた"}],
+        len:"30秒", flag:"",
+        src:[{name:"KAI-YOU", url:"https://kai-you.net/article/97195", primary:true}]
+      },
+      {
+        title:"ホラー作家・背筋『穢れた聖地巡礼について』が2027年に映画化",
+        plain:"心霊スポットを取材する3人が、怪しい出来事に巻き込まれていくホラー小説が、実写映画になる。この作家の小説が映画になるのは、これで3作目。",
+        who:[{n:"背筋", d:"ホラー作家。『近畿地方のある場所について』も映画になった"}],
+        terms:[{w:"心霊スポット", d:"幽霊が出るとうわさされる場所"}],
+        len:"30秒", flag:"later",
+        src:[{name:"KAI-YOU", url:"https://kai-you.net/article/97194", primary:true}]
+      }
+    ]},
+
+    /* ------------------------------ 流行(18:00に埋まる) ------------------------------ */
+    { id:"trendent", label:"流行・エンタメ", nav:"流行E", genres:[
+      { g:"音楽",          s:"リアルタイム検索 / PR TIMES", items:[
+        { r:1, t:"IRIS OUT — 米津玄師", n:"Amazon Musicの2026年 年間1位に選ばれた" },
+        { r:2, t:"Christmas EveL — Stray Kids", n:"冬の曲のMVが再生2億回を超えた" }
+      ]},
+      { g:"映画・ドラマ",    s:"リアルタイム検索 / Googleトレンド", items:[
+        { r:1, t:"『映画ドラえもん のび太の蒸気時間車』", n:"次の映画の題名。19世紀のイギリスが舞台。Xトレンド6位" },
+        { r:2, t:"映画『汝、星のごとく』", n:"公開35日で興行収入20億円を超えた" },
+        { r:3, t:"朝ドラ『ブラッサム』", n:"モデルの作家・宇野千代の人生が検索で急上昇" }
+      ]},
+      { g:"アニメ・マンガ",  s:"リアルタイム検索 / はてブ game", items:[
+        { r:1, t:"漫画版『都会のトム＆ソーヤ』", n:"はやみねかおるの人気小説の漫画が始まった。Xトレンド12位" },
+        { r:2, t:"『ぼっち・ざ・ろっく！』", n:"新しい映画「星のあしあと」が発表された" }
+      ]},
+      { g:"ゲーム",         s:"SteamCharts(全世界・PCのみ・第三者集計)", items:[
+        { r:1, t:"近未来の街のアクションRPG(Cyberpunk 2077)", n:"発売から6年近くたっても同接4.6万人" },
+        { r:2, t:"アバターで集まる仮想空間(VRChat)", n:"遊ぶより集まって話す場所。同接3.9万人" },
+        { r:3, t:"畑を耕す農場暮らしのゲーム(Stardew Valley)", n:"2016年の作品で、今も同接3.7万人" }
+      ]},
+      { g:"本",            s:"リアルタイム検索「本 話題」", items:[] },
+      { g:"スポーツ",       s:"Xトレンド / Googleトレンド急上昇", items:[
+        { r:1, t:"大相撲 砂武蔵", n:"父は元十両。序ノ口デビューの場所で全勝優勝" },
+        { r:2, t:"巨人・坂本勇人", n:"1年契約で再契約。年俸は下がった" },
+        { r:3, t:"耐久レースのトヨタに新ドライバー(ケビン・エストレ)", n:"2027年の世界耐久選手権(WEC)からトヨタで走る" }
+      ]}
+    ]},
+    { id:"trendlife", label:"流行・くらし", nav:"流行L", genres:[
+      { g:"料理・グルメ",       s:"リアルタイム検索「レシピ 話題」", items:[
+        { r:1, t:"辛くてクリーミーなソース(アルジェリアンソース)", n:"辛さとまろやかさが同居すると、SNSで話題" },
+        { r:2, t:"コーン茶で炊くごはん(HIKAKINさんのコーン茶ご飯)", n:"とうもろこし茶で炊いて香ばしく。インスタで話題" },
+        { r:3, t:"ひっくり返して仕上げるチーズケーキ(逆さまチーズケーキ)", n:"去年バズったレシピが再び。15分ほどで作って一晩冷やす" }
+      ]},
+      { g:"コスメ・美容",       s:"リアルタイム検索(コスメ・乾燥対策)", items:[
+        { r:1, t:"肌の水分にふたをする(ワセリン)", n:"冬の乾燥対策で話題。ドラッグストアで数百円から" },
+        { r:2, t:"化粧水のあとに重ねる保湿クリーム", n:"水分のあとに油分で閉じこめる順番が、乾燥対策で話題" }
+      ]},
+      { g:"ガジェット・家電",    s:"リアルタイム検索 / PR TIMES", items:[
+        { r:1, t:"auのデザインケータイの新型(INFOBAR ZERO)", n:"色の板を並べたINFOBARシリーズの新作が発表された" },
+        { r:2, t:"グーグルとサムスンのメガネ型端末", n:"今月予約、年末発売の予定と話題に" },
+        { r:3, t:"タッチ画面のチェキ(instax mini Evo 2)", n:"11月27日発売。チェキで初めてのタッチ画面" }
+      ]},
+      { g:"買ってよかったもの",  s:"リアルタイム検索「買ってよかった」", items:[
+        { r:1, t:"留守中のペットを見るカメラ(ペットカメラ)", n:"地震やペットの体調不良をきっかけに。見ているだけで楽しい" },
+        { r:2, t:"月を撮れる望遠カメラ(Nikon COOLPIX P1100)", n:"月モードで、手持ちでも月が撮れた" },
+        { r:3, t:"夜の作業で手元を照らす(モニターライト)", n:"画面の上から照らして、夜の作業が楽になった" }
+      ]},
+      { g:"おでかけ",          s:"リアルタイム検索「持っていってよかった」", items:[
+        { r:1, t:"地面に敷く折りたたみクッション(セリア)", n:"屋外イベントの開演待ちで「あるとないでは雲泥の差」" },
+        { r:2, t:"温かいお茶を入れた水筒", n:"冷える屋外の待ち時間に助かった" },
+        { r:3, t:"予備の雨具", n:"「やむ」予報のあとに降り出した日に助かった" }
+      ]},
+      { g:"ファッション",       s:"ファッションプレス(新作発表)", items:[
+        { r:1, t:"迷彩柄の上着など(ア ベイシング エイプ×パレス)", n:"人気の2ブランドが初めて組んだ", link:"https://www.fashion-press.net/news/153686" },
+        { r:2, t:"日本で作ったエンジニアブーツ(ショット)", n:"革ジャンで知られるブランドが初めて日本製で", link:"https://www.fashion-press.net/news/153682" },
+        { r:3, t:"灰色スエードのスニーカー(トム ブラウン×アシックス)", n:"ゲルカヤノ14を2ブランドが共同で", link:"https://www.fashion-press.net/news/153676" }
+      ]}
+    ]},
+
+    /* ------------------------------ 天気と暦(06:00) ------------------------------ */
+    { id:"weather", label:"天気と暦", nav:"天気", articles:[
+    {
+        title:"東京はあすも晴れ　降水確率は一日中0%、朝5度・昼15度",
+      lede:"東京地方はきょう20日、冬型の気圧配置で晴れ。伊豆諸島では雨で雷を伴う所がある見込み。あす21日も冬型の気圧配置が続いて晴れ、降水確率はどの時間帯も0%。あすの最低気温は5度、最高気温は15度の予報。一方で札幌はあす「くもり時々雪」で最低気温はマイナス1度、仙台も雨か雪の所があり、北のほうでは冬の天気になる。",
+      figtop:true,
+      figure:{ type:"table", caption:"あすの各地／出典: 気象庁 天気予報(加工して作成)",
+               cols:["地域","あすの天気","最高","最低"],
+               rows:[["札幌","くもり時々雪","5","-1"],
+                     ["仙台","くもり所により雨か雪","8","2"],
+                     ["東京","晴れ","15","5"],
+                     ["大阪","晴れ後くもり夜一時雨","13","7"],
+                     ["福岡","くもり昼前から雨","12","7"],
+                     ["那覇","くもり昼過ぎから時々晴れ","22","18"]] },
+      structure:["関東甲信地方は冬型の気圧配置になっている","あす21日も冬型の気圧配置が続く見込み","東京はきょう・あすとも晴れ"],
+      terms:[{w:"冬型の気圧配置", d:"西に高気圧、東に低気圧がある並び方。「西高東低」とも呼ぶ。冬によく見られ、日本海側は雪や雨、太平洋側は晴れになりやすい"}],
+      len:"2分", flag:"star",
+      src:[{name:"気象庁 天気予報(PDL1.0・加工して作成)", url:"https://www.jma.go.jp/bosai/", primary:true}] },
+    {
+        title:"きょうの心得 — 3連休の初日、朝と昼で10度差",
+      lede:"あす21日から23日の勤労感謝の日まで3連休。初日の東京は、朝の最低気温が5度、昼の最高気温が15度で、10度の差がある予報。朝に合わせた服だと昼は暑く、昼に合わせると朝は寒い。脱ぎ着しやすい1枚があると調整がききやすい。降水確率はずっと0%で、傘の出番はなさそう。",
+      len:"30秒", flag:"",
+      src:[{name:"気象庁 天気予報(PDL1.0・加工して作成)", url:"https://www.jma.go.jp/bosai/", primary:true}] },
+    {
+        title:"きょうという日 — 11月20日は「世界こどもの日」、でも日本では5月5日",
+      lede:"「世界こどもの日」は、国連が1954年に、すべての加盟国へ制定を勧めた記念日。日付は各国に任されていて、多くの国は、国連で「児童の権利に関する宣言」(1959年)と「児童の権利に関する条約」(1989年)が採択された11月20日にしている。ところが日本では、こどもの日の5月5日を世界こどもの日に当てていて、1956年から実施している。",
+      len:"1分", flag:"",
+      src:[{name:"Wikipedia「世界こどもの日」", url:"https://ja.wikipedia.org/wiki/%E4%B8%96%E7%95%8C%E3%81%93%E3%81%A9%E3%82%82%E3%81%AE%E6%97%A5", primary:true}] }
+  ] },
+
+    /* ------------------------------ 生活・学び ------------------------------ */
+    { id:"life", label:"生活・学び", articles:[
+      {
+        title:"【今日の1つ】スマホのロックを固くする　使わない時は電源を切り、パスコードは英数字で",
+        plain:"スマホのロックを、特別な道具で無理やり外す手口がある。防ぎ方として、使わない時は電源を切ること、パスコードを数字4〜6けたではなく10文字以上の英数字にすることが挙がっている。",
+        figure:{ type:"flow", caption:"出典: GIGAZINE(非営利団体 Osservatorio Nessuno の解説を紹介)",
+                 steps:["電源を入れて一度もロックを外していない時が一番固い","だから、しばらく使わない時は電源を切る","パスコードは10文字以上の英数字にする","大文字・小文字・記号をまぜる"] },
+        terms:[{w:"パスコード", d:"スマホのロックを外すための暗証番号や文字列"}],
+        len:"2分", flag:"star",
+        src:[{name:"GIGAZINE", url:"https://gigazine.net/news/20261120-phone-unlocking/", primary:true}]
+      },
+      {
+        title:"ネットにつながらない携帯「INFOBAR ZERO」、12月25日発売　通話とSMSだけ",
+        plain:"auの会社が、電話とショートメッセージだけを使える携帯を出す。ネットもSNSもLINEも使えない。値段は3万2780円で、auと契約していなくても買える。",
+        terms:[{w:"SMS", d:"電話番号だけで送れる短いメッセージ。ショートメッセージとも呼ぶ"}],
+        len:"2分", flag:"",
+        src:[{name:"ITmedia NEWS", url:"https://www.itmedia.co.jp/news/article/2611/20/2000003330/", primary:true}]
+      },
+      {
+        title:"『ちいかわ』の学習参考書、累計100万部を突破",
+        plain:"人気漫画『ちいかわ』を使った小学生向けのドリルなどのシリーズが、合わせて100万部売れた。漫画を読んで答える読解の問題も入っている。",
+        terms:[{w:"累計", d:"これまでの分をすべて足した数"}],
+        len:"30秒", flag:"later",
+        src:[{name:"KAI-YOU", url:"https://kai-you.net/article/97214", primary:true}]
+      }
+    ]},
+
+    /* ------------------------------ テック・AI ------------------------------ */
+    { id:"tech", label:"テック・AI", articles:[
+      {
+        title:"Webサーバソフト「nginx」に「緊急」の脆弱性　日本政府も更新を呼びかけ",
+        plain:"世界でいちばん広く使われている、Webサイトの入り口に置くソフトに、外から勝手にプログラムを動かされる穴が2つ見つかった。直した版が出ていて、国も早めの更新を呼びかけている。",
+        structure:["穴を突く特殊な通信が届く","サーバーが止まる・乗っ取られる","情報を盗まれ、サイトを書きかえられるおそれ"],
+        impact:{ who:"Webサイトを見るだけの人", t:"自分で何かする必要はない。更新するのはサイトを運営する側" },
+        terms:[
+          {w:"Webサーバソフト", d:"Webサイトを見に来た人に、ページを送り返すソフト"},
+          {w:"脆弱性", d:"プログラムの弱点。悪用されると乗っ取りなどにつながる。紙面では「穴」と書いた"}
+        ],
+        len:"2分", flag:"star",
+        src:[{name:"ITmedia NEWS", url:"https://www.itmedia.co.jp/news/article/2611/19/2000003325/", primary:true}]
+      },
+      {
+        title:"PHPの「緊急」脆弱性で、ウマ娘やグラブル、イープラスが一時停止して緊急メンテ",
+        plain:"Webサービスづくりに広く使われるプログラミング言語に、直すべき穴が見つかった。直した版が出た19日の夜、ゲームやチケット販売のサービスが、次々と止めて入れかえた。",
+        terms:[{w:"緊急メンテ", d:"予定になかった、サービスを止めて行う手入れ"}],
+        len:"30秒", flag:"",
+        src:[{name:"ITmedia NEWS", url:"https://www.itmedia.co.jp/news/article/2611/20/2000003357/", primary:true}]
+      },
+      {
+        title:"Google、宇宙AIデータセンター構想でBlue Originと提携　2029年に衛星打ち上げへ",
+        upd:{ prev:"11/2", new:"ロケット会社のBlue Originと組み、2029年に大型ロケットで衛星を打ち上げると決めた" },
+        plain:"宇宙に、AIの計算をする機械を積んだ衛星を並べる計画で、Googleがロケット会社と組んだ。2029年の初めごろ、大型ロケットで衛星を打ち上げる予定。",
+        terms:[{w:"データセンター", d:"計算機をたくさん並べて、まとめて動かす施設"}],
+        len:"30秒", flag:"",
+        src:[{name:"ITmedia NEWS", url:"https://www.itmedia.co.jp/news/article/2611/20/2000003358/", primary:true}]
+      }
+    ]},
+
+    /* ------------------------------ 趣味(06:00) ------------------------------ */
+    { id:"hobby", label:"趣味", articles:[
+    {
+        title:"野点(のだて) — 外で湯を沸かして、抹茶を点てて飲む",
+      lede:"屋外で湯を沸かし、抹茶を点てて楽しむ茶会のこと。屋内の茶道ほど作法にこだわらない、気軽な形でもかまわない。道具は茶碗と茶筅、湯を沸かす鍋があれば足り、今はキャンプ用のこんろや魔法瓶でも楽しめる。",
+      body:[
+        "1587年、豊臣秀吉は京都の北野天満宮で、身分を問わず誰でも参加できる大茶会「北野大茶湯」を開き、総勢1,000人が集まったとされる。会場では野点も行われた。",
+        "その大茶会は10日間開く予定だったのに、初日だけで打ち切られた。なぜやめたのかは今もはっきりせず、いくつもの説がある。",
+        "茶碗の最高峰とされる「曜変天目茶碗」は、本物と認められ完全な形で残るものが世界に3つ(4つとする説もある)しかなく、そのすべてが日本にある。3つは国宝。",
+        "千利休が作ったと信じられる唯一の現存する茶室「待庵」(国宝)は、茶をいただく席がわずか2畳しかない。"
+      ],
+      img:{ src:"assets/01-matcha-set.jpg", alt:"黒い机の上に、竹の茶筅、赤茶色と白の模様の茶碗、竹の茶杓が並んでいる",
+            caption:"抹茶を点てる3つの道具。左から茶筅、茶碗、手前が茶杓",
+            credit:"Kaminix / CC BY 3.0 / Wikimedia Commons" },
+      len:"2分", flag:"",
+      src:[
+        {name:"Wikipedia「野点」", url:"https://ja.wikipedia.org/wiki/%E9%87%8E%E7%82%B9", primary:true},
+        {name:"Wikipedia「北野大茶湯」", url:"https://ja.wikipedia.org/wiki/%E5%8C%97%E9%87%8E%E5%A4%A7%E8%8C%B6%E6%B9%AF", primary:false},
+        {name:"Wikipedia「曜変天目茶碗」", url:"https://ja.wikipedia.org/wiki/%E6%9B%9C%E5%A4%89%E5%A4%A9%E7%9B%AE%E8%8C%B6%E7%A2%97", primary:false},
+        {name:"Wikipedia「妙喜庵」(待庵)", url:"https://ja.wikipedia.org/wiki/%E5%A6%99%E5%96%9C%E5%BA%B5", primary:false}
+      ] }
+  ] },
+
+    /* ------------------------------ 総合 ------------------------------ */
+    { id:"general", label:"総合", articles:[
+      {
+        title:"熊本県天草・芦北地方でM5.7、最大震度5弱　その後も揺れが続く",
+        plain:"19日の午前2時22分、熊本県の南のほうで、マグニチュード5.7の地震があった。球磨村とあさぎり町で震度5弱。津波の心配はない。その後も震度1〜3の揺れが続き、20日昼までに60回を超えた。",
+        structure:["深さ約10kmで地震","熊本の2町村で震度5弱","震度1〜3の揺れがくり返す"],
+        figure:{ type:"bars", unit:"回", caption:"19日2時22分〜20日正午ごろ、震源が熊本県天草・芦北地方の地震の数(最大震度別)／出典: 気象庁(公共データ利用規約 PDL1.0・データをもとに作成)",
+                 items:[{label:"震度1", value:43},{label:"震度2", value:17},{label:"震度3", value:3},{label:"震度5弱", value:1}] },
+        terms:[
+          {w:"マグニチュード", d:"地震そのものの大きさ。場所ごとの揺れの強さを表す「震度」とは別もの"},
+          {w:"震度5弱", d:"多くの人が恐怖を感じ、棚の食器や本が落ちることがある揺れ"}
+        ],
+        len:"2分", flag:"star",
+        src:[{name:"気象庁(公共データ利用規約 PDL1.0・データをもとに作成)", url:"https://www.jma.go.jp/bosai/quake/data/20261119022646_20261119022225_VXSE5k_1.json", primary:true}]
+      },
+      {
+        title:"ゲーム「NIKKE」経由でマルウェア感染　北海道の2自治体、委託先が認める",
+        upd:{ prev:"11/6", new:"書きかえられた起動アプリが、北海道の2自治体の情報漏えいに関わっていたと委託先が認めた" },
+        plain:"北海道の岩見沢市と新得町の仕事を引き受けた会社の、さらに下請けの会社のパソコンが、悪いプログラムに感染した。元の会社は、人気ゲームの起動アプリが関係していると認めた。住民の情報が漏れたおそれがある。",
+        structure:["ゲームの起動アプリが書きかえられる","それを起動したパソコンが感染","自治体から預かった情報が漏れたおそれ"],
+        terms:[
+          {w:"マルウェア", d:"パソコンを勝手に操ったり、情報を盗んだりする悪いプログラム"},
+          {w:"委託先", d:"仕事をお願いして任せた相手の会社"}
+        ],
+        len:"2分", flag:"",
+        src:[{name:"ITmedia NEWS", url:"https://www.itmedia.co.jp/news/article/2611/19/2000003351/", primary:true}]
+      },
+      {
+        title:"湘南美容クリニックのSBC、162万人分の個人情報が流出　パスワードは暗号化せず保存",
+        plain:"美容クリニックを運営するグループのデータが、不正に取られた。162万人分の名前や住所、パスワードなどが含まれる。2010〜2023年に登録されたもので、当時はパスワードをそのままの形で保存していた。",
+        terms:[{w:"暗号化", d:"他人が見ても読めないように、データを変換しておくこと"}],
+        len:"30秒", flag:"",
+        src:[{name:"ITmedia NEWS", url:"https://www.itmedia.co.jp/news/article/2611/20/2000003355/", primary:true}]
+      }
+    ],
+      briefs:{ title:"きょうの政治トレンド", items:[
+        { t:"ペルーのケイコ・フジモリ大統領が来日、高市首相と会談 重要鉱物の供給網で連携", s:"Xトレンド10位 / Google急上昇" },
+        { t:"来春の神奈川県知事選、最初の立候補表明が出る 現職は去就を明らかにしていない", s:"Xトレンド2位" },
+        { t:"横浜市長の新しい住まい、家賃月42万円の約9割を市が負担とテレビ報道", s:"Xトレンド5位" }
+      ]}},
+
+    /* ------------------------------ 経済・金融 ------------------------------ */
+    { id:"money", label:"経済・金融", articles:[
+      {
+        title:"doda転職求人倍率、10月は2.92倍　求人数は1年前より18.3%増",
+        plain:"転職したい人1人に対して、中途採用の求人が2.92件ある、という数字が出た。1年前より求人がぐっと増えた。",
+        structure:["求人が1年で18.3%増える","転職したい人は1.4%しか増えない","1人あたりの求人が増える"],
+        terms:[
+          {w:"求人倍率", d:"仕事を探す人1人に対して、求人がいくつあるかを表す数。dodaの数字は、dodaの登録者と求人から出している"},
+          {w:"中途採用", d:"学校を出てすぐではなく、働いた経験のある人を雇うこと"}
+        ],
+        len:"2分", flag:"star",
+        src:[{name:"パーソルキャリア(PR TIMES)", url:"https://prtimes.jp/main/html/rd/p/000001126.000022215.html", primary:true}]
+      },
+      {
+        title:"楽天証券、アンソロピックIPOで「抽選対象外」の表示不具合　後から「当選」の報告相次ぐ",
+        plain:"一面のAI企業の株を、売り出しの値段で買える抽選で、楽天証券の画面に「抽選の対象外」と出る人が続いた。昼前から、その人たちにも「当選」が届き始めた。",
+        structure:["申し込みが想定より多い","抽選の処理に時間がかかる","結果の発表が2時間遅れる"],
+        terms:[{w:"IPO", d:"新規株式公開。上場するときに、はじめて株を売り出すこと"}],
+        len:"30秒", flag:"",
+        src:[{name:"ITmedia NEWS", url:"https://www.itmedia.co.jp/news/article/2611/19/2000003347/", primary:true}]
+      },
+      {
+        title:"六花亭の通販サイト、カード番号全桁とセキュリティコードが流出か　決済画面を改ざん",
+        plain:"北海道のお菓子の会社の通販サイトで、支払いの画面のプログラムが書きかえられていた。入力したカードの番号などが、外に送られていたおそれがある。",
+        impact:{ who:"10月21日夜〜11月18日午前に、六花亭の通販でカード払いをした人", t:"会社は、カードの明細に覚えのない請求がないか確かめるよう呼びかけている" },
+        terms:[{w:"改ざん", d:"勝手に書きかえること"}],
+        len:"30秒", flag:"",
+        src:[{name:"ITmedia NEWS", url:"https://www.itmedia.co.jp/news/article/2611/19/2000003316/", primary:true}]
+      }
+    ]},
+
+    /* ------------------------------ 国際(06:00) ------------------------------ */
+    { id:"world", label:"国際", articles:[
+    {
+        title:"AIに法律の相談、イギリスでは紛争を経験した人の6人に1人　でも「解決したか」は分からない",
+      plain:"イギリスの調査で、法律のもめごとを経験した人の6人に1人が、AIのチャットボットに相談していた。AIは権利の説明や書類の下書きはできるが、大家に話し合いをさせたり、会社に給料を払わせたりはできない。相談が問題の解決につながったかどうかも、調査では確かめられなかった、という記事。",
+      structure:["AIが権利を分かりやすく説明し、書類を用意する","でも大家に交渉させたり、会社に給料を払わせたりはできない","申し立てを出しやすくなるぶん、もともと手いっぱいの役所の負担が増えうる"],
+      terms:[{w:"チャットボット", d:"文字で話しかけると、文字で返事をしてくれるAIのしくみ"}],
+      warn:"英語ソース",
+      len:"2分", flag:"star",
+      src:[{name:"Global Voices(CC BY 3.0・英語記事を要約して作成)｜原題: An AI chatbot can explain your rights. But can it get you justice?",
+            url:"https://globalvoices.org/2026/11/18/an-ai-chatbot-can-explain-your-rights-but-can-it-get-you-justice/", primary:true}] }
+  ] },
+
+    /* ------------------------------ 解説 ------------------------------ */
+    { id:"explain", label:"解説", explain:{
+        title:"ゲームを起動しただけで感染する、とはどういうことか",
+        lede:"北海道の2自治体の情報漏えいに、人気ゲームの起動アプリが関わっていた。怪しいサイトを開かなくても、いつものアプリを起動しただけで感染することがある。",
+        why:"11月5日に『勝利の女神：NIKKE』PC版の起動アプリの改ざんが分かり、19日に、その影響が自治体の情報漏えいにまで及んでいたと委託先が認めたため。",
+        points:[
+          "起動アプリは、ゲームを始める前に最新のデータを取りに行く。今回は、その配る側のプログラムが書きかえられていた",
+          "利用者は、公式のアプリを公式のやり方で起動しただけ。自分では怪しいことを何もしていない",
+          "他人の情報を預かるパソコンが感染すると、被害は持ち主だけでなく、情報を預けた側にも及ぶ"
+        ],
+        figure:{ type:"flow", caption:"出典: ITmedia NEWS",
+                 steps:["配る側のプログラムが書きかえられる","利用者が、いつもどおりゲームを起動","マルウェアが送り込まれる","遠隔操作やパスワードの盗み出し"] },
+        enough:"「公式のものでも、配る途中で書きかえられることがある」と分かれば十分。",
+        len:"5分", flag:"star",
+        src:[{name:"ITmedia NEWS", url:"https://www.itmedia.co.jp/news/article/2611/19/2000003351/", primary:true}]
+    }},
+
+    /* ------------------------------ 最終 ------------------------------ */
+    { id:"last", label:"最終", articles:[
+      {
+        title:"次の紙面は 11月23日(月)",
+        lede:"月・水・金に紙面を作って、その日の夜に https://kuzilive.github.io/news/ に置いています。",
+        len:"30秒", flag:"" },
+      {
+        title:"ニュースを募集しています",
+        lede:"気になったニュースを、ソースのURLと一緒に https://forms.gle/LKYrXsCGRGFyNXzA6 から送ってください。条件を満たしたものは「読者から」の面で紹介します。",
+        len:"30秒", flag:"" },
+      {
+        title:"間違いに気づいたら",
+        lede:"短い時間で組んでいるので、間違いが混ざることがあります。気づいたことがあれば、同じフォームから教えてください。",
+        len:"30秒", flag:"" }
+    ]}
+  ]
+};
+</script>
+
+<div id="stage"></div>
+
+<div id="notes" role="complementary" aria-label="主用ノート"></div>
+
+<div id="help">
+  <table>
+    <tr><td><kbd>→</kbd> <kbd>Space</kbd></td><td>次の面</td></tr>
+    <tr><td><kbd>←</kbd></td><td>前の面</td></tr>
+    <tr><td><kbd>1</kbd>…<kbd>9</kbd></td><td>面を直接開く</td></tr>
+    <tr><td><kbd>n</kbd></td><td>主用ノート(配信には映らない)</td></tr>
+    <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>面の中をスクロール</td></tr>
+    <tr><td><kbd>?</kbd> <kbd>Esc</kbd></td><td>この一覧</td></tr>
+  </table>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const el  = (h) => { const t = document.createElement("template"); t.innerHTML = h.trim(); return t.content.firstElementChild; };
+
+  /* ---------- 部品 ---------- */
+  const flags = a => {
+    const out = [];
+    if (a.flag === "star")  out.push(`<span class="star" title="今日の推し">★</span>`);
+    if (a.flag === "later") out.push(`<span class="later" title="余ったら">△</span>`);
+    if (a.upd)  out.push(`<span class="upd-tag" title="前回までに扱ったネタの続き">続報</span>`);
+    if (a.len)  out.push(`<span class="len${/5分|深掘/.test(a.len) ? " long" : ""}">${esc(a.len)}</span>`);
+    if (a.warn) out.push(`<span class="caution">${esc(a.warn)}</span>`);
+    return out.length ? `<div class="flags">${out.join("")}</div>` : "";
+  };
+
+  const figure = img => img && img.src
+    ? `<figure>
+         <img src="${esc(img.src)}" alt="${esc(img.alt || "")}">
+         <figcaption>${esc(img.caption || "")}${
+            img.credit ? ` <span class="cr">／${esc(img.credit)}</span>` : ""}</figcaption>
+       </figure>`
+    : "";
+
+  /* URLはリンクにする。配信では押せないが、Webに載せたときに
+     元記事へ辿れることが引用の形を保つ(鉄則2・3、CC BY の表示義務) */
+  const link = u => u
+    ? `<a class="u" href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a>`
+    : "";
+
+  const sources = src => {
+    if (!src || !src.length) return "";
+    const rows = src.map(s => s.primary === false
+      ? `<div><span class="unconfirmed">一次未確認</span> ${esc(s.name)}　${link(s.url)}</div>`
+      : `<div><b>${esc(s.name)}</b>　${link(s.url)}</div>`).join("");
+    return `<div class="src">${rows}</div>`;
+  };
+
+  /* かんたんに言うと = 記事の本体。
+     note と違って主用ノートではなく、視聴者に見せる。n キーでは隠れない。
+       plain     … 何の話かを1〜3文
+       terms     … その文に出た言葉の意味。最大3語
+       structure … しくみ。["原因","中間","結果"] を矢印で繋いで出す。最大4つ */
+  const plain = a => {
+    const ts = (a.terms || []).filter(t => t && t.w);
+    const st = (a.structure || []).filter(Boolean);
+    if (!a.plain && !ts.length && !st.length) return "";
+    /* ⚠ ラベルは plain があるときだけ出す(2026-09-09に直した)。
+       天気面・趣味面・最終面は **plain を書かない**決まりだが、
+       天気面は「気象台が書いた"なぜ"」を出すために structure と terms を書く。
+       ラベルを無条件に出していたため、**中身が矢印と用語だけの
+       「かんたんに言うと」が天気面に出ていた。**
+       `check-html.py` は plain キーの有無しか見ないので、これは検査を素通りする。 */
+    return `<div class="plain">
+      ${a.plain ? `<span class="lb">かんたんに言うと</span><p>${esc(a.plain)}</p>` : ""}
+      ${st.length ? `<div class="flow">${
+        st.map(s => `<span>${esc(s)}</span>`).join(`<i>▶</i>`)}</div>` : ""}
+      ${ts.length ? `<div class="terms">${
+        ts.map(t => `<div><b>${esc(t.w)}</b>＝${esc(t.d)}</div>`).join("")}</div>` : ""}
+    </div>`;
+  };
+
+  /* 自分にどう来るか。2026-08-31に追加。**任意**。
+       impact:{ who:"〜を使っている人", t:"どう来るか" }  (who は省略可)
+     推測になる記事(決算・海外の出来事・健康)には付けない。
+     付けたときは structure の最後を因果で締める(同じことを二度書かない) */
+  const mine = a => {
+    const m = a.impact;
+    if (!m || !m.t) return "";
+    return `<div class="mine"><span class="lb">自分にどう来るか</span>${
+      m.who ? `<span class="wo">${esc(m.who)}：</span>` : ""}${esc(m.t)}</div>`;
+  };
+
+  /* 前回からの新着。既出のネタを載せるときだけ書く。
+       upd:{ prev:"8/22", new:"新しいのは〜" }
+     new が書けない(=新着が無い)なら、そのネタは紙面に載せずに落とす。
+     視聴者にも見せる。常連には「前回の続き」、初見には「何が動いたか」になる */
+  const updated = a => {
+    const u = a.upd;
+    if (!u || !u.new) return "";
+    return `<div class="upd"><span class="lb">前回からの新着${
+      u.prev ? `　<span class="pv">（${esc(u.prev)}の続き）</span>` : ""
+    }</span><p>${esc(u.new)}</p></div>`;
+  };
+
+  /* 登場人物。芸能・配信面の、人が主語の記事では必須(CLAUDE.md「登場人物」)。
+     名前は鉄則7と配信面の線引きを通ったものだけ。最大2人 */
+  const people = a => {
+    const ws = (a.who || []).filter(w => w && w.n);
+    if (!ws.length) return "";
+    return `<div class="who"><span class="lb">登場人物</span>${
+      ws.map(w => `<div><b>${esc(w.n)}</b>　<span class="d">${esc(w.d || "")}</span></div>`)
+        .join("")}</div>`;
+  };
+
+  const article = (a, isLead) => {
+    const hl = `${flags(a)}
+      <h2 class="hl">${isLead && a.kicker ? `<span class="kicker">${esc(a.kicker)}</span>` : ""}${esc(a.title)}</h2>`;
+    const ledeP = a.lede ? `<p class="lede">${esc(a.lede)}</p>` : "";
+    const head = `${hl}${ledeP}`;
+    const body = `${(a.body || []).map(p => `<p>${esc(p)}</p>`).join("")}`;
+
+    // 一面のリードだけ、画像を横に置いた2カラムにする。
+    // figureSVG は解説面専用ではない。どの面の記事でも a.figure を書けば図が出る
+    // (報道写真が使えない以上、図解が紙面に絵を入れる主要な手段なので塞がない)
+    // 「かんたんに言うと」は見出し・リードの直後。本文にぶつかる前に置く
+    // figtop:true は図を見出しの直後(リードより前)へ上げる。天気面の「各地の天気」の表が
+    // これで、**表を読みに来る面なので、文章より先に出す**(2026-09-03。主の判断)
+    const inner = isLead
+      ? `${head}${plain(a)}${mine(a)}${updated(a)}${people(a)}<div class="leadwrap"><div class="body">${body}${sources(a.src)}</div><div>${figure(a.img)}${figureSVG(a.figure)}</div></div>`
+      : a.figtop
+        ? `${hl}${figureSVG(a.figure)}${ledeP}${plain(a)}${mine(a)}${updated(a)}${people(a)}${figure(a.img)}<div class="body">${body}</div>${sources(a.src)}`
+        : `${head}${plain(a)}${mine(a)}${updated(a)}${people(a)}${figure(a.img)}<div class="body">${body}</div>${figureSVG(a.figure)}${sources(a.src)}`;
+
+    return `<article class="${isLead ? "is-lead lead" : ""}${a.wide ? " wide" : ""}">${inner}</article>`;
+  };
+
+  /* 流行面。記事ではなく一覧なので article() を通さない。
+     1ジャンル1枚のカードに順位を3件。**名前だけ並べても何も話せない**ので、
+     1件ずつ一言(n)を必ず付ける。
+     link(コンテンツへのURL)は紙面に出さない。主が script.md からコピペする */
+  const trendPage = gs => `<div class="trend">${(gs || []).map(x => {
+    const its = (x.items || []).filter(i => i && i.t);
+    return `<div class="card">
+      <div class="g">${esc(x.g)}</div>
+      ${its.length
+        ? `<ol class="rank">${its.map(i => `<li><span class="r">${
+             esc(i.r == null ? "" : String(i.r))}</span><span class="t">${esc(i.t)}</span>${
+             i.n ? `<span class="n">${esc(i.n)}</span>` : ""}</li>`).join("")}</ol>`
+        : `<div class="none">—</div>`}
+      ${x.s ? `<div class="s">${esc(x.s)}</div>` : ""}
+    </div>`;
+  }).join("")}</div>`;
+
+  const briefs = b => (!b || !b.items || !b.items.length) ? "" : `
+    <div class="briefs">
+      <h3>${esc(b.title || "短信")}</h3>
+      <ul>${b.items.map(i => `<li>${esc(i.t)}<span class="b-src">${esc(i.s || "")}　${link(i.u)}</span></li>`).join("")}</ul>
+    </div>`;
+
+  /* ---------- 図解の部品 ----------
+     SVGを毎回手書きさせると必ず壊れるので、型を5つ用意してデータだけ受け取る。
+     table だけはSVGではなくHTMLの表を返す(figureSVG の囲みはそのまま効く)。
+     報道写真が使えない以上、図解は紙面に絵を入れる主要な手段になる。 */
+
+  // SVGには自動改行が無いので、文字数で切って tspan を積む
+  const tsp = (text, x, y, per, lh) => {
+    const s = String(text ?? ""), out = [];
+    for (let i = 0; i < s.length; i += per) out.push(s.slice(i, i + per));
+    return out.map((l, i) => `<tspan x="${x}" y="${y + i * lh}">${esc(l)}</tspan>`).join("");
+  };
+  const lineCount = (text, per) => Math.max(1, Math.ceil(String(text ?? "").length / per));
+
+  const FIG = {
+    // 時系列。「いつ何が起きたか」に使う
+    timeline(f) {
+      const items = f.items || [];
+      let y = 26, rows = "";
+      for (const it of items) {
+        const n = lineCount(it.label, 26);
+        rows += `<circle cx="96" cy="${y}" r="7" style="fill:var(--accent)"/>
+          <text x="82" y="${y + 5}" text-anchor="end" style="fill:var(--ink-soft);font:600 15px system-ui,sans-serif">${esc(it.t)}</text>
+          <text style="fill:var(--ink);font:700 17px serif">${tsp(it.label, 116, y + 6, 26, 22)}</text>`;
+        y += 22 * n + 26;
+      }
+      return `<svg viewBox="0 0 600 ${y}" role="img">
+        <line x1="96" y1="26" x2="96" y2="${y - 26}" style="stroke:var(--rule-thin);stroke-width:2"/>${rows}</svg>`;
+    },
+
+    // 横棒。順位・件数・ブクマ数など「数の大小」に使う
+    bars(f) {
+      const items = f.items || [];
+      const max = Math.max(...items.map(i => +i.value || 0), 1);
+      const X = 8, W = 560;
+      let y = 18, rows = "";
+      for (const it of items) {
+        const w = Math.max(3, (+it.value || 0) / max * W);
+        rows += `<text x="${X}" y="${y}" style="fill:var(--ink);font:700 17px serif">${esc(it.label)}</text>
+          <text x="${X + W}" y="${y}" text-anchor="end" style="fill:var(--accent);font:800 18px system-ui,sans-serif">${esc(it.value)}${esc(f.unit || "")}</text>
+          <rect x="${X}" y="${y + 8}" width="${w}" height="16" style="fill:var(--accent)"/>
+          <rect x="${X}" y="${y + 8}" width="${W}" height="16" style="fill:none;stroke:var(--rule-thin)"/>`;
+        y += 54;
+      }
+      return `<svg viewBox="0 0 576 ${y - 20}" role="img">${rows}</svg>`;
+    },
+
+    // 対比。賛否が割れる話題の「両側の言い分」に使う
+    compare(f) {
+      const col = (c, x) => {
+        let y = 30, s = `<text x="${x + 130}" y="${y}" text-anchor="middle" style="fill:var(--paper);font:800 18px system-ui,sans-serif">${esc(c.title)}</text>`;
+        y += 32;
+        for (const it of (c.items || [])) {
+          const n = lineCount(it, 20);
+          s += `<text style="fill:var(--ink);font:400 16px serif">${tsp("・" + it, x + 10, y, 20, 21)}</text>`;
+          y += 21 * n + 12;
+        }
+        return { s, y };
+      };
+      const L = col(f.left || {}, 0), R = col(f.right || {}, 300);
+      const H = Math.max(L.y, R.y) + 10;
+      return `<svg viewBox="0 0 576 ${H}" role="img">
+        <rect x="0" y="8" width="270" height="30" style="fill:var(--rule)"/>
+        <rect x="300" y="8" width="270" height="30" style="fill:var(--accent)"/>
+        <line x1="285" y1="8" x2="285" y2="${H - 6}" style="stroke:var(--rule-thin);stroke-width:1;stroke-dasharray:4 4"/>
+        ${L.s}${R.s}</svg>`;
+    },
+
+    // 流れ。制度・手続き・因果の「順番」に使う
+    flow(f) {
+      const steps = f.steps || [];
+      let y = 6, rows = "";
+      for (let i = 0; i < steps.length; i++) {
+        const n = lineCount(steps[i], 30), h = 22 * n + 22;
+        rows += `<rect x="8" y="${y}" width="560" height="${h}" style="fill:none;stroke:var(--rule);stroke-width:2"/>
+          <text style="fill:var(--ink);font:700 17px serif">${tsp(steps[i], 24, y + 28, 30, 22)}</text>`;
+        y += h;
+        if (i < steps.length - 1) {
+          rows += `<path d="M288 ${y + 4} l0 16 m-7 -7 l7 7 l7 -7" style="stroke:var(--accent);stroke-width:2.5;fill:none"/>`;
+          y += 26;
+        }
+      }
+      return `<svg viewBox="0 0 576 ${y + 6}" role="img">${rows}</svg>`;
+    },
+
+    // 表。地域ごとの天気のように「同じ項目を、同じ形で並べて比べる」ものに使う。
+    // cols は見出しの行、rows は1行ぶんの配列。1列目が行の見出しになる。
+    // 2列目だけ文章を想定して左寄せ、それ以外は数字として右寄せで出る。
+    table(f) {
+      const head = (f.cols || []).map(c => `<th scope="col">${esc(c)}</th>`).join("");
+      const body = (f.rows || []).map(r => `<tr>${(r || []).map((c, i) =>
+        i === 0 ? `<th scope="row">${esc(c)}</th>` : `<td>${esc(c)}</td>`).join("")}</tr>`).join("");
+      if (!body) return "";
+      return `<table class="figtab">${head ? `<thead><tr>${head}</tr></thead>` : ""}<tbody>${body}</tbody></table>`;
+    }
+  };
+
+  const figureSVG = f => {
+    if (!f || !FIG[f.type]) return "";
+    let svg = "";
+    try { svg = FIG[f.type](f); } catch (_) { return ""; }   // 図が壊れても紙面は落とさない
+    return `<figure class="fig">${svg}${f.caption ? `<figcaption>${esc(f.caption)}</figcaption>` : ""}</figure>`;
+  };
+
+  /* ---------- クイズ面(答えはキーを押すまで伏せる) ---------- */
+  const quizPage = list => `<div class="quiz">${(list || []).map((q, i) => `
+    <div class="q" data-q="${i}">
+      <span class="no">第${i + 1}問</span>
+      <div class="qt">${esc(q.q)}</div>
+      ${q.choices ? `<ol>${q.choices.map(ch => `<li>${esc(ch)}</li>`).join("")}</ol>` : ""}
+      <div class="ans">
+        <div class="cover">クリック / <b>A</b> キーで答え</div>
+        <div class="real">
+          <div class="a">${esc(q.answer)}</div>
+          ${q.note ? `<div class="why">${esc(q.note)}</div>` : ""}
+          ${q.src ? `<div class="s">${esc(q.src.name)}　${esc(q.src.url)}</div>` : ""}
+        </div>
+      </div>
+    </div>`).join("")}</div>`;
+
+  /* ---------- 解説面 ---------- */
+  const explainPage = e => `<div class="explain">
+    <div class="head">
+      <h2>${esc(e.title)}</h2>
+      ${e.lede ? `<p class="lede">${esc(e.lede)}</p>` : ""}
+    </div>
+    <div>
+      ${e.why ? `<div class="why"><b>なぜ今これが話題なのか</b><br>${esc(e.why)}</div>` : ""}
+      <ol class="pt">${(e.points || []).map(p => `<li>${esc(p)}</li>`).join("")}</ol>
+    </div>
+    <div>${figureSVG(e.figure)}</div>
+    ${e.enough ? `<div class="enough"><b>ここまで分かれば十分</b>${esc(e.enough)}</div>` : ""}
+    <div style="grid-column:1 / -1">${sources(e.src)}</div>
+  </div>`;
+
+  /* ---------- 目次面「本日のトピック」を自動生成する ---------- */
+  // PAPER には書かない。各面のデータから毎回組み立てるので、面を増やせば勝手に追随する。
+  const body_ = PAPER.pages || [];
+  // 目次と主用ノートを、面の種類によらず同じ形で扱えるようにする
+  const all = p => {
+    if (p.explain) return [p.explain];
+    if (p.quiz)    return p.quiz.map((q, i) => ({ title:`第${i + 1}問 ${q.q}`, len:q.len || "2分", note:q.note }));
+    if (p.genres)  return p.genres.map(x => {
+      const top = (x.items || []).filter(i => i && i.t)[0];
+      return { title:`${x.g}　${top ? top.t : "—"}`,
+               len:x.len || "30秒", flag:x.flag, note:x.note };
+    });
+    return [p.lead, ...(p.articles || [])].filter(Boolean);
+  };
+
+  // "30秒" / "2分" / "5分" を分に直す。尺の合計を出して主が配分を判断できるようにする
+  const mins = a => {
+    const s = String(a.len || "");
+    const m = s.match(/(\d+(?:\.\d+)?)\s*分/);
+    if (m) return parseFloat(m[1]);
+    const sec = s.match(/(\d+)\s*秒/);
+    return sec ? parseInt(sec[1], 10) / 60 : 0;
+  };
+
+  const card = (p, idx) => {
+    const list  = all(p);
+    const star  = list.find(a => a.flag === "star");
+    const rest  = list.filter(a => a !== star);
+    const total = list.reduce((s, a) => s + mins(a), 0);
+    const warns = list.filter(a => a.warn).length;
+    const upds  = list.filter(a => a.upd).length;
+    return `
+      <div class="card" data-go="${idx}">
+        <h3><span class="n">${idx}</span>${esc(p.label)}</h3>
+        ${star ? `<div class="top"><span class="star">★</span>${
+            star.upd ? `<span class="upd-tag">続報</span> ` : ""}${esc(star.title)}</div>` : ""}
+        ${list.length
+          ? `<ul>${rest.map(a =>
+              `<li class="${a.warn ? "warn" : ""}">${a.flag === "later" ? "△ " : ""}${
+                a.upd ? "続 " : ""}${esc(a.title)}</li>`).join("")}</ul>`
+          : `<div class="none">—</div>`}
+        <div class="tally">
+          <span>${list.length}本</span>
+          <span>計 <b>${Math.round(total)}</b>分</span>
+          ${upds ? `<span>続報 ${upds}</span>` : ""}
+          ${warns ? `<span>要注意 ${warns}</span>` : ""}
+        </div>
+      </div>`;
+  };
+
+  const tocSheet = () => {
+    const list  = body_.flatMap(all);
+    const stars = list.filter(a => a.flag === "star");
+    const grand = Math.round(list.reduce((s, a) => s + mins(a), 0));
+    const smin  = Math.round(stars.reduce((s, a) => s + mins(a), 0));
+    const warns = list.filter(a => a.warn).length;
+    return `<div class="toc">
+      <div class="tocsum">
+        <span>全 <span class="big">${list.length}</span> 本</span>
+        <span>総尺 <span class="big">${grand}</span> 分</span>
+        <span>★ ${stars.length}本 <span class="big">${smin}</span> 分</span>
+        ${list.filter(a => a.upd).length ? `<span>続報 ${list.filter(a => a.upd).length}本</span>` : ""}
+        ${warns ? `<span class="warnlist">要注意 ${warns}件</span>` : ""}
+        <span style="margin-left:auto;opacity:.65">尺は目安。多すぎたら△から落とす</span>
+      </div>
+      ${body_.map((p, i) => card(p, i + 1)).join("")}
+    </div>`;
+  };
+
+  /* ---------- 面を組む ---------- */
+  const pages = [{ id:"toc", label:"本日のトピック", nav:"トピック", toc:true }, ...body_];
+  const stage = document.getElementById("stage");
+  // Webに置いたときだけ注記を出す。OBS(file://)と手元での確認には出さない
+  if (location.protocol === "http:" || location.protocol === "https:")
+    document.body.classList.add("on-web");
+
+  const navHTML = pages.map((p, i) =>
+    `<span data-go="${i}" class="${i === 0 ? "cur" : ""}">${i ? i + "." : ""}${esc(p.nav || p.label)}</span>`).join("");
+
+  stage.innerHTML = pages.map((p, i) => {
+    const arts = p.articles || [];
+    let sheet;
+
+    if (p.toc) {                                    // 本日のトピック(自動生成)
+      sheet = tocSheet();
+    } else if (p.quiz) {                            // クイズ(答えは伏せた状態で描く)
+      sheet = quizPage(p.quiz);
+    } else if (p.genres) {                          // 流行(ジャンル別トレンド)
+      sheet = trendPage(p.genres);
+    } else if (p.explain) {                         // 解説
+      sheet = explainPage(p.explain);
+    } else if (p.lead) {                            // 一面
+      sheet = `<div class="grid two">
+                 ${article(p.lead, true)}
+                 ${arts.map(a => article(a, false)).join("")}
+                 ${briefs(p.briefs)}
+               </div>`;
+    } else {
+      const cols = arts.length <= 2 ? " two" : "";
+      sheet = `<div class="grid${cols}">
+                 ${arts.length ? arts.map(a => article(a, false)).join("")
+                               : `<article><div class="none">—</div></article>`}
+                 ${briefs(p.briefs)}
+               </div>`;
+    }
+
+    return `
+      <section class="page${i === 0 ? " on" : ""}" id="pg-${esc(p.id)}" data-i="${i}">
+        <header class="masthead">
+          <div class="title">くじら<span class="dot">・</span>新聞</div>
+          <div class="meta">
+            ${esc(PAPER.date)}(${esc(PAPER.dow)}) ${esc(PAPER.edition || "")}<br>
+            ${esc(PAPER.issue || "")}　${esc(PAPER.weather || "")}
+          </div>
+          <div class="spacer"></div>
+          <div class="pagelabel">${esc(p.label)}</div>
+        </header>
+        <div class="sheet">${sheet}</div>
+        <footer class="foot">
+          <div class="nav">${navHTML}</div>
+          <div class="spacer"></div>
+          <a class="home" href="../">号一覧</a>
+          <div class="pager"><span data-step="-1">‹ 前</span><span data-step="1">次 ›</span></div>
+          <div class="disclaimer">この新聞はAIで自動生成しており誤りを含んでいる可能性があります。あくまで個人的な実験として作成しております。</div>
+          <div class="foot-hint">${i + 1} / ${pages.length}　—　<kbd>?</kbd> でキー一覧</div>
+        </footer>
+      </section>`;
+  }).join("");
+
+  /* ---------- 面送り ---------- */
+  let cur = 0;
+  const secs = [...document.querySelectorAll(".page")];
+
+  const go = n => {
+    cur = Math.max(0, Math.min(pages.length - 1, n));
+    secs.forEach((s, i) => s.classList.toggle("on", i === cur));
+    secs[cur].querySelectorAll(".nav span").forEach((s, i) => s.classList.toggle("cur", i === cur));
+    document.querySelectorAll(".nav span").forEach(s =>
+      s.classList.toggle("cur", +s.dataset.go === cur));
+    history.replaceState(null, "", "#" + pages[cur].id);
+    if (notesOn) renderNotes();
+    secs[cur].querySelector(".sheet").scrollTop = 0;
+  };
+
+  document.addEventListener("click", e => {
+    const g = e.target.closest("[data-go]");
+    if (g) { go(+g.dataset.go); return; }
+    const st = e.target.closest("[data-step]");     // キーの無い環境(スマホ)用
+    if (st) { go(cur + (+st.dataset.step)); return; }
+    const q = e.target.closest(".q");               // クイズは1問ずつクリックで開く
+    if (q) q.classList.toggle("open");
+  });
+
+  /* ---------- 主用ノート ---------- */
+  const notesBox = document.getElementById("notes");
+  let notesOn = false;
+
+  // note は文字列でも配列でもよい(配列推奨。文字列の生改行は構文エラーになるため)
+  const lines = v => (Array.isArray(v) ? v : [v]).filter(Boolean);
+
+  function renderNotes() {
+    const p = pages[cur];
+    const list = [p.lead, ...(p.articles || [])].filter(Boolean);
+    const rows = list.filter(a => a.hook || a.note || a.warn).map(a => `
+      <div class="n">
+        <div class="t">${esc(a.title)}${a.len ? `　<span class="op">[${esc(a.len)}]</span>` : ""}</div>
+        ${a.warn ? `<div class="warn">⚠ ${esc(a.warn)}</div>` : ""}
+        ${a.hook ? `<div class="v"><span class="op">入口:</span> ${esc(a.hook)}</div>` : ""}
+        ${a.note ? lines(a.note).map(l => `<div class="v">${esc(l)}</div>`).join("") : ""}
+      </div>`).join("");
+    notesBox.innerHTML =
+      `<h4>主用ノート — ${esc(p.label)}（この表示は配信に映りません）</h4>` +
+      (rows || `<div class="empty">この面にノートはありません</div>`);
+  }
+
+  const toggleNotes = () => {
+    notesOn = !notesOn;
+    notesBox.classList.toggle("on", notesOn);
+    if (notesOn) renderNotes();
+  };
+
+  /* ---------- キー ---------- */
+  const help = document.getElementById("help");
+  addEventListener("keydown", e => {
+    if (e.key === "?" || (e.key === "/" && e.shiftKey)) { help.classList.toggle("on"); e.preventDefault(); return; }
+    if (e.key === "Escape") { help.classList.remove("on"); return; }
+    if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { go(cur + 1); e.preventDefault(); return; }
+    if (e.key === "ArrowLeft"  || e.key === "PageUp")                    { go(cur - 1); e.preventDefault(); return; }
+    if (e.key === "Home") { go(0); return; }
+    if (e.key === "End")  { go(pages.length - 1); return; }
+    if (e.key === "n" || e.key === "N") { toggleNotes(); return; }
+    if (e.key === "a" || e.key === "A") {           // クイズの答えを一斉に開閉
+      const qs = [...secs[cur].querySelectorAll(".q")];
+      const anyClosed = qs.some(q => !q.classList.contains("open"));
+      qs.forEach(q => q.classList.toggle("open", anyClosed));
+      return;
+    }
+    if (/^[1-9]$/.test(e.key)) { go(+e.key - 1); return; }
+    if (e.key === "ArrowDown") { secs[cur].querySelector(".sheet").scrollBy(0, 120); e.preventDefault(); }
+    if (e.key === "ArrowUp")   { secs[cur].querySelector(".sheet").scrollBy(0, -120); e.preventDefault(); }
+  });
+
+  // #front のようなハッシュで直接その面を開く(OBSのURL指定用)
+  const h = location.hash.slice(1);
+  const at = pages.findIndex(p => p.id === h);
+  go(at >= 0 ? at : 0);
+})();
+</script>
+</body>
+</html>
